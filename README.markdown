@@ -153,6 +153,3 @@ Submit issues/PRs for:
 - New models
 - Additional languages
 - Optimizations
-
-## License
-MIT License
