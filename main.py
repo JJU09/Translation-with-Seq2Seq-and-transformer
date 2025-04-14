@@ -19,7 +19,7 @@ if __name__ == "__main__":
     valid_set_path = '/content/drive/MyDrive/코드잇/스프린트 미션/data/mission11/일상생활및구어체_한영_valid_set.json'
 
     # 데이터 로드
-    train_set = load_json(train_set_path, max_samples=50000)
+    train_set = load_json(train_set_path, max_samples=1000)
     valid_set = load_json(valid_set_path, max_samples=1000)
 
     ko_sentences_train = [item["ko"] for item in train_set]
@@ -32,8 +32,8 @@ if __name__ == "__main__":
     src_sentences_valid, tgt_sentences_valid = preprocess_data(ko_sentences_valid, en_sentences_valid)
 
     # 어휘 사전 구축
-    src_vocab = Vocab(min_freq=5)
-    tgt_vocab = Vocab(min_freq=5)
+    src_vocab = Vocab(min_freq=1)
+    tgt_vocab = Vocab(min_freq=1)
     src_vocab.build_vocab(src_sentences_train)
     tgt_vocab.build_vocab(tgt_sentences_train)
 
