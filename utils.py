@@ -86,7 +86,8 @@ def plot_losses(train_losses: List[float], val_losses: List[float], model_name: 
     plt.ylabel("Loss")
     plt.legend()
     plt.savefig(f"{model_name}_loss_plot.png")
-    plt.close()
+    plt.show()
+    # plt.close()
 
 # 번역 함수
 def translate_sentence(model: nn.Module, sentence: str, src_vocab: Vocab, tgt_vocab: Vocab, max_len: int, device: torch.device, max_output_len: int = 50) -> str:
