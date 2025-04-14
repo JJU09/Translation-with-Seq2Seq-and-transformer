@@ -13,7 +13,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
     patience = 3
     counter = 0
 
-    for epoch in tqdm(range(num_epochs), desc="Training Epochs", leave=True):
+    for epoch in tqdm(range(num_epochs), desc="Training Epochs"):
         model.train()
         epoch_train_loss = 0
         for src, tgt in train_loader:
@@ -42,7 +42,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
                 epoch_val_loss += loss.item()
 
         val_losses.append(epoch_val_loss / len(val_loader))
-        tqdm.write(f"Epoch {epoch+1}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
+        print(f"Epoch {epoch+1}, Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
 
         if val_losses[-1] < best_val_loss:
             best_val_loss = val_losses[-1]
@@ -50,7 +50,7 @@ def train_model(model: nn.Module, train_loader: DataLoader, val_loader: DataLoad
         else:
             counter += 1
             if counter >= patience:
-                tqdm.write("Early stopping triggered!")
+                print("Early stopping triggered!")
                 break
 
     return train_losses, val_losses
