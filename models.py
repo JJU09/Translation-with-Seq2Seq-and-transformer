@@ -44,9 +44,9 @@ class Seq2SeqAttention(nn.Module):
         self.decoder_embedding = nn.Embedding(tgt_vocab_size, embed_size)
         self.encoder = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True, dropout=dropout if num_layers > 1 else 0)
         self.decoder = nn.LSTM(embed_size + hidden_size, hidden_size, num_layers, batch_first=True, dropout=dropout if num_layers > 1 else 0)
-        self.attention = nn.Linear(embed_size + hidden_size, hidden_size)
         self.fc = nn.Linear(hidden_size, tgt_vocab_size)
         self.dropout = nn.Dropout(dropout)
+        self.energy = nn.Linear(hidden_size * 2, 1)  # 어텐션 에너지 계산용
 
     def forward(self, src: torch.Tensor, tgt: torch.Tensor, teacher_forcing_ratio: float = 0.5) -> torch.Tensor:
         batch_size = src.size(0)
@@ -55,16 +55,19 @@ class Seq2SeqAttention(nn.Module):
 
         outputs = torch.zeros(batch_size, max_len, tgt_vocab_size).to(src.device)
         enc_embedded = self.dropout(self.encoder_embedding(src))
-        enc_output, (hidden, cell) = self.encoder(enc_embedded)
+        enc_output, (hidden, cell) = self.encoder(enc_embedded)  # enc_output: [batch_size, src_len, hidden_size]
 
-        dec_input = tgt[:, 0].unsqueeze(1)
+        dec_input = tgt[:, 0].unsqueeze(1)  # [batch_size, 1]
         for t in range(1, max_len):
-            dec_embedded = self.dropout(self.decoder_embedding(dec_input))
-            attn_weights = torch.softmax(self.attention(torch.cat((dec_embedded.squeeze(1), hidden[-1]), dim=1)), dim=1)
-            context = torch.bmm(attn_weights.unsqueeze(1), enc_output)
-            dec_input_combined = torch.cat((dec_embedded, context), dim=2)
+            dec_embedded = self.dropout(self.decoder_embedding(dec_input))  # [batch_size, 1, embed_size]
+            # 어텐션 계산
+            hidden_last = hidden[-1].unsqueeze(1).repeat(1, enc_output.size(1), 1)  # [batch_size, src_len, hidden_size]
+            energy = self.energy(torch.cat((hidden_last, enc_output), dim=2))  # [batch_size, src_len, 1]
+            attn_weights = torch.softmax(energy.squeeze(2), dim=1)  # [batch_size, src_len]
+            context = torch.bmm(attn_weights.unsqueeze(1), enc_output)  # [batch_size, 1, hidden_size]
+            dec_input_combined = torch.cat((dec_embedded, context), dim=2)  # [batch_size, 1, embed_size + hidden_size]
             output, (hidden, cell) = self.decoder(dec_input_combined, (hidden, cell))
-            output = self.fc(output.squeeze(1))
+            output = self.fc(output.squeeze(1))  # [batch_size, tgt_vocab_size]
             outputs[:, t, :] = output
 
             teacher_force = random.random() < teacher_forcing_ratio
@@ -111,3 +114,4 @@ class Transformer(nn.Module):
         output = self.transformer(src_embedded, tgt_embedded, src_mask=src_mask, tgt_mask=tgt_mask)
         output = self.fc(output)
         return output
+
