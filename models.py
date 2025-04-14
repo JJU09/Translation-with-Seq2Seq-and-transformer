@@ -44,7 +44,7 @@ class Seq2SeqAttention(nn.Module):
         self.decoder_embedding = nn.Embedding(tgt_vocab_size, embed_size)
         self.encoder = nn.LSTM(embed_size, hidden_size, num_layers, batch_first=True, dropout=dropout if num_layers > 1 else 0)
         self.decoder = nn.LSTM(embed_size + hidden_size, hidden_size, num_layers, batch_first=True, dropout=dropout if num_layers > 1 else 0)
-        self.attention = nn.Linear(hidden_size * 2, hidden_size)
+        self.attention = nn.Linear(embed_size + hidden_size, hidden_size)
         self.fc = nn.Linear(hidden_size, tgt_vocab_size)
         self.dropout = nn.Dropout(dropout)
 
