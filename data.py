@@ -5,39 +5,33 @@ from collections import Counter
 from typing import List, Tuple, Dict
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-train_set_path = 'data/일상생활및구어체_한영_train_set.json'
-valid_set_path = 'data/일상생활및구어체_한영_valid_set.json'
-
-def load_json(file_path, max_samples=1000):
+# 데이터 로딩
+def load_json(file_path: str, max_samples: int = 1000) -> List[Dict]:
     with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     return data["data"][:max_samples]
 
-train_set = load_json(train_set_path, max_samples=50000)
-valid_set = load_json(valid_set_path, max_samples=1000)
+# 데이터 전처리
+def preprocess_data(ko_sentences: List[str], en_sentences: List[str]) -> Tuple[List[str], List[str]]:
+    okt = Okt()
+    ko_tokenized = [" ".join(okt.morphs(s)) for s in tqdm(ko_sentences, desc="Tokenizing Korean")]
+    en_tokenized = [" ".join(word_tokenize(s.lower())) for s in tqdm(en_sentences, desc="Tokenizing English")]
+    return ko_tokenized, en_tokenized
 
-ko_sentences_train = [item["ko"] for item in train_set]
-en_sentences_train = [item["en"] for item in train_set]
-ko_sentences_valid = [item["ko"] for item in valid_set]
-en_sentences_valid = [item["en"] for item in valid_set]
-
-# 데이터 전처리 및 어휘사전 구축
+# 어휘 사전
 class Vocab:
-    def __init__(self, min_freq: int = 2):
+    def __init__(self, min_freq: int = 5):
         self.word2idx = {"<PAD>": 0, "<SOS>": 1, "<EOS>": 2, "<UNK>": 3}
         self.idx2word = {0: "<PAD>", 1: "<SOS>", 2: "<EOS>", 3: "<UNK>"}
         self.min_freq = min_freq
 
     def build_vocab(self, sentences: List[str]) -> None:
         counter = Counter()
-        for sentence in sentences:
+        for sentence in tqdm(sentences, desc="Building vocab"):
             words = sentence.split()
             counter.update(words)
         
-        # 기존 특수 토큰 유지하고 새로운 단어 추가
-        vocab_size = len(self.word2idx)  # <PAD>, <SOS>, <EOS>, <UNK> 이후부터 시작
+        vocab_size = len(self.word2idx)
         for word, freq in counter.items():
             if freq >= self.min_freq and word not in self.word2idx:
                 self.word2idx[word] = vocab_size
@@ -54,8 +48,21 @@ class Vocab:
             indices += [self.word2idx["<PAD>"]] * (max_len - len(indices))
         return torch.tensor(indices, dtype=torch.long)
 
+    def tensor_to_sentence(self, tensor: torch.Tensor) -> str:
+        indices = tensor.tolist()
+        words = [self.idx2word.get(idx, "<UNK>") for idx in indices if idx not in [0, 1, 2]]
+        return " ".join(words)
 
-# 데이터셋 및 데이터 로더
+    def save(self, path: str) -> None:
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    @staticmethod
+    def load(path: str) -> 'Vocab':
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+
+# 데이터셋
 class TranslationDataset(Dataset):
     def __init__(self, src_sentences: List[str], tgt_sentences: List[str], src_vocab: Vocab, tgt_vocab: Vocab, max_len: int):
         self.src_sentences = src_sentences
@@ -63,11 +70,11 @@ class TranslationDataset(Dataset):
         self.src_vocab = src_vocab
         self.tgt_vocab = tgt_vocab
         self.max_len = max_len
+        self.src_tensors = [self.src_vocab.sentence_to_tensor(s, max_len) for s in tqdm(src_sentences, desc="Preprocessing src")]
+        self.tgt_tensors = [self.tgt_vocab.sentence_to_tensor(s, max_len) for s in tqdm(tgt_sentences, desc="Preprocessing tgt")]
 
     def __len__(self) -> int:
         return len(self.src_sentences)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        src = self.src_vocab.sentence_to_tensor(self.src_sentences[idx], self.max_len)
-        tgt = self.tgt_vocab.sentence_to_tensor(self.tgt_sentences[idx], self.max_len)
-        return src, tgt
+        return self.src_tensors[idx], self.tgt_tensors[idx]
